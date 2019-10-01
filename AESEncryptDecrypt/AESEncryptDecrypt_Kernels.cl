@@ -71,45 +71,64 @@ void AESEncrypt(__global  uchar4  * output  ,
                 __local   uchar4  * block0  ,
                 __local   uchar4  * block1  ,
                 const     uint      width   , 
-                const     uint     rounds   )
+                const     uint     rounds   ,
+		const uint group_x,
+		const uint group_y,
+		const uint local_x,
+		const uint local_y)
                                 
 {
-    unsigned int blockIdx = get_group_id(0);
-    unsigned int blockIdy = get_group_id(1);
- 
-    unsigned int localIdx = get_local_id(0);
-    unsigned int localIdy = get_local_id(1);
-    
-    unsigned int globalIndex = (((blockIdy * width/4) + blockIdx) * 4 )+ (localIdy);
-    unsigned int localIndex  = localIdy;
-
-    __private uchar4 galiosCoeff[4];
-     galiosCoeff[0] = (uchar4)(2, 0, 0, 0);
-     galiosCoeff[1] = (uchar4)(3, 0, 0, 0);
-     galiosCoeff[2] = (uchar4)(1, 0, 0, 0);
-     galiosCoeff[3] = (uchar4)(1, 0, 0, 0);
-
-    block0[localIndex]  = input[globalIndex];
-    
-    block0[localIndex] ^= roundKey[localIndex];
-
-    for(unsigned int r=1; r < rounds; ++r)
-    {
-        block0[localIndex] = sbox(SBox, block0[localIndex]);
-
-        block0[localIndex] = shiftRows(block0[localIndex], localIndex); 
-       
-        barrier(CLK_LOCAL_MEM_FENCE);
-        block1[localIndex]  = mixColumns(block0, galiosCoeff, localIndex); 
-        
-        barrier(CLK_LOCAL_MEM_FENCE);
-        block0[localIndex] = block1[localIndex]^roundKey[r*4 + localIndex];
-    }  
-    block0[localIndex] = sbox(SBox, block0[localIndex]);
+  // Iterate over blocks
+  // Iterate over threads in block
   
-    block0[localIndex] = shiftRows(block0[localIndex], localIndex); 
-
-    output[globalIndex] =  block0[localIndex]^roundKey[(rounds)*4 + localIndex];
+  for (uint g_x = 0; g_x < group_x; ++g_x) {
+    for (uint g_y = 0; g_y < group_y; ++g_y) {
+      for (uint l_x = 0; l_x < local_x; ++l_x) {
+	for (uint l_y = 0; l_y < local_y; ++l_y) {
+	  //	  unsigned int blockIdx = get_group_id(0);
+	  //	  unsigned int blockIdy = get_group_id(1);
+	  //	  unsigned int localIdx = get_local_id(0);
+	  //	  unsigned int localIdy = get_local_id(1);
+	  unsigned int blockIdx = g_x;
+	  unsigned int blockIdy = g_y;
+	  unsigned int localIdx = l_x;
+	  unsigned int localIdy = l_y;
+	  
+	  
+	  unsigned int globalIndex = (((blockIdy * width/4) + blockIdx) * 4 )+ (localIdy);
+	  unsigned int localIndex  = localIdy;
+	  
+	  __private uchar4 galiosCoeff[4];
+	  galiosCoeff[0] = (uchar4)(2, 0, 0, 0);
+	  galiosCoeff[1] = (uchar4)(3, 0, 0, 0);
+	  galiosCoeff[2] = (uchar4)(1, 0, 0, 0);
+	  galiosCoeff[3] = (uchar4)(1, 0, 0, 0);
+	  
+	  block0[localIndex]  = input[globalIndex];
+	  
+	  block0[localIndex] ^= roundKey[localIndex];
+	  
+	  for(unsigned int r=1; r < rounds; ++r)
+	    {
+	      block0[localIndex] = sbox(SBox, block0[localIndex]);
+	      
+	      block0[localIndex] = shiftRows(block0[localIndex], localIndex); 
+	      
+	      barrier(CLK_LOCAL_MEM_FENCE);
+	      block1[localIndex]  = mixColumns(block0, galiosCoeff, localIndex); 
+	      
+	      barrier(CLK_LOCAL_MEM_FENCE);
+	      block0[localIndex] = block1[localIndex]^roundKey[r*4 + localIndex];
+	    }  
+	  block0[localIndex] = sbox(SBox, block0[localIndex]);
+	  
+	  block0[localIndex] = shiftRows(block0[localIndex], localIndex); 
+	  
+	  output[globalIndex] =  block0[localIndex]^roundKey[(rounds)*4 + localIndex];
+	}
+      }
+    }
+  }
 }
 
 uchar4
@@ -131,44 +150,58 @@ void AESDecrypt(__global  uchar4  * output    ,
                 __local   uchar4  * block0    ,
                 __local   uchar4  * block1    ,
                 const     uint      width     , 
-                const     uint      rounds    )
+                const     uint      rounds    ,
+		const uint global_x,
+		const uint global_y)
                                 
 {
-    unsigned int blockIdx = get_group_id(0);
-    unsigned int blockIdy = get_group_id(1);
- 
-    unsigned int localIdx = get_local_id(0);
-    unsigned int localIdy = get_local_id(1);
+  for (uint g_x = 0; g_x < group_x; ++g_x) {
+    for (uint g_y = 0; g_y < group_y; ++g_y) {
+      for (uint l_x = 0; l_x < local_x; ++l_x) {
+	for (uint l_y = 0; l_y < local_y; ++l_y) {
+	  //	  unsigned int blockIdx = get_group_id(0);
+	  //	  unsigned int blockIdy = get_group_id(1);
+	  //	  unsigned int localIdx = get_local_id(0);
+	  //	  unsigned int localIdy = get_local_id(1);
+	  unsigned int blockIdx = g_x;
+	  unsigned int blockIdy = g_y;
+	  unsigned int localIdx = l_x;
+	  unsigned int localIdy = l_y;
     
-    unsigned int globalIndex = (((blockIdy * width/4) + blockIdx) * 4 )+ (localIdy);
-    unsigned int localIndex  = localIdy;
-
-    __private uchar4 galiosCoeff[4];
-     galiosCoeff[0] = (uchar4)(14, 0, 0, 0);
-     galiosCoeff[1] = (uchar4)(11, 0, 0, 0);
-     galiosCoeff[2] = (uchar4)(13, 0, 0, 0);
-     galiosCoeff[3] = (uchar4)(9, 0, 0, 0);
-
-    block0[localIndex]  = input[globalIndex];
-    
-    block0[localIndex] ^= roundKey[4*rounds + localIndex];
-
-    for(unsigned int r=rounds -1 ; r > 0; --r)
-    {
-        block0[localIndex] = shiftRowsInv(block0[localIndex], localIndex); 
-    
-        block0[localIndex] = sbox(SBox, block0[localIndex]);
-        
-        barrier(CLK_LOCAL_MEM_FENCE);
-        block1[localIndex] = block0[localIndex]^roundKey[r*4 + localIndex];
-
-        barrier(CLK_LOCAL_MEM_FENCE);
-        block0[localIndex]  = mixColumns(block1, galiosCoeff, localIndex); 
-    }  
-
-    block0[localIndex] = shiftRowsInv(block0[localIndex], localIndex); 
-
-    block0[localIndex] = sbox(SBox, block0[localIndex]);
-
-    output[globalIndex] =  block0[localIndex]^roundKey[localIndex];
+	  unsigned int globalIndex = (((blockIdy * width/4) + blockIdx) * 4 )+ (localIdy);
+	  unsigned int localIndex  = localIdy;
+	  
+	  __private uchar4 galiosCoeff[4];
+	  galiosCoeff[0] = (uchar4)(14, 0, 0, 0);
+	  galiosCoeff[1] = (uchar4)(11, 0, 0, 0);
+	  galiosCoeff[2] = (uchar4)(13, 0, 0, 0);
+	  galiosCoeff[3] = (uchar4)(9, 0, 0, 0);
+	  
+	  block0[localIndex]  = input[globalIndex];
+	  
+	  block0[localIndex] ^= roundKey[4*rounds + localIndex];
+	  
+	  for(unsigned int r=rounds -1 ; r > 0; --r)
+	    {
+	      block0[localIndex] = shiftRowsInv(block0[localIndex], localIndex); 
+	      
+	      block0[localIndex] = sbox(SBox, block0[localIndex]);
+	      
+	      barrier(CLK_LOCAL_MEM_FENCE);
+	      block1[localIndex] = block0[localIndex]^roundKey[r*4 + localIndex];
+	      
+	      barrier(CLK_LOCAL_MEM_FENCE);
+	      block0[localIndex]  = mixColumns(block1, galiosCoeff, localIndex); 
+	    }  
+	  
+	  block0[localIndex] = shiftRowsInv(block0[localIndex], localIndex); 
+	  
+	  block0[localIndex] = sbox(SBox, block0[localIndex]);
+	  
+	  output[globalIndex] =  block0[localIndex]^roundKey[localIndex];
+	}	
+      }
+    }
+  }
+  
 }

@@ -910,8 +910,11 @@ AESEncryptDecrypt::runCLKernels(void)
     cl_int   status;
     cl_event events[2];
 
-    size_t globalThreads[2]= {width/4, height};
-    size_t localThreads[2] = {1, 4};
+    size_t globalThreads_original[2]= {width/4, height};
+    size_t globalThreads[2] = {1,1};
+    size_t localThreads_original[2] = {1, 4};
+    size_t localThreads[2] = {1,1};
+    
 
     status =  clGetKernelWorkGroupInfo(
                     kernel,
@@ -1070,6 +1073,68 @@ AESEncryptDecrypt::runCLKernels(void)
         return SDK_FAILURE;
 
 
+    //    size_t globalThreads_original[2]= {width/4, height};
+    //    size_t globalThreads[2] = {1,1};
+    //    size_t localThreads_original[2] = {1, 4};
+    //    size_t localThreads[2] = {1,1};
+    
+    size_t groupSize[2] = {globalThreads_original[0]/localThreads_original[0],
+			   globalThreads_original[1]/localThreads_original[1]};
+    
+    
+    status = clSetKernelArg(
+                            kernel,
+                            8,
+                            sizeof(cl_uint),
+                            (void*)&groupSize[0]);
+    if(!sampleCommon->checkVal(
+                               status,
+                               CL_SUCCESS,
+                               "clSetKernelArg failed. (outputImageBuffer)"))
+      {
+        return SDK_FAILURE;
+      }
+    
+    status = clSetKernelArg(
+                            kernel,
+                            9,
+                            sizeof(cl_uint),
+                            (void*)&groupSize[1]);
+    if(!sampleCommon->checkVal(
+                               status,
+                               CL_SUCCESS,
+                               "clSetKernelArg failed. (outputImageBuffer)"))
+      {
+        return SDK_FAILURE;
+      }
+
+    status = clSetKernelArg(
+                            kernel,
+                            10,
+                            sizeof(cl_uint),
+                            (void*)&localThreads_original[0]);
+    if(!sampleCommon->checkVal(
+                               status,
+                               CL_SUCCESS,
+                               "clSetKernelArg failed. (outputImageBuffer)"))
+      {
+        return SDK_FAILURE;
+      }
+    
+    status = clSetKernelArg(
+                            kernel,
+                            11,
+                            sizeof(cl_uint),
+                            (void*)&localThreads_original[1]);
+    if(!sampleCommon->checkVal(
+                               status,
+                               CL_SUCCESS,
+                               "clSetKernelArg failed. (outputImageBuffer)"))
+      {
+        return SDK_FAILURE;
+      }
+
+    
     /* 
      * Enqueue a kernel run call.
      */
